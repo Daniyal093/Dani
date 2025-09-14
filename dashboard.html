@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Dashboard — EarnSite</title><link rel="stylesheet" href="styles.css"/></head>
+<body class="bg">
+<header class="topbar"><div class="brand">EarnSite</div><div><button id="logoutBtn" class="btn tiny">Logout</button></div></header>
+<main class="container">
+<section class="welcome card"><h2 id="greeting">Hello</h2><p class="muted" id="balanceLine">Balance: $0.00</p>
+<div class="actions"><button class="btn" id="genRef">Generate Referral Link</button><button class="btn ghost" id="shareBtn">Share</button><button class="btn" id="withdrawBtn">Request Withdrawal</button></div>
+<div id="shareArea" style="margin-top:12px;"><div class="muted">Share progress: <span id="shareCount">0</span>/10</div><div class="progress"><div id="progressFill" style="width:0%"></div></div>
+<div style="margin-top:8px;"><button class="btn tiny" id="simulateOne">+1 share</button><button class="btn tiny ghost" id="simulateTen">+10 shares</button></div></div>
+<div id="refContainer" style="margin-top:12px;"></div></section>
+
+<section class="card info"><h3>Recommended Reads</h3><ul id="linksList"></ul></section>
+<section class="card transactions"><h3>Transactions & Activity</h3><div id="txList"></div></section>
+<section class="card proofs"><h3>Payout Proofs</h3><div class="proofs-grid" id="proofGrid"><img src="assets/proof1.svg" alt="proof1"/><img src="assets/proof2.svg" alt="proof2"/></div></section>
+</main>
+
+<div id="shareModal" class="modal" aria-hidden="true"><div class="modal-card"><h3>Share your referral</h3><p class="muted">Use WhatsApp, copy link, or native share (if available).</p><input id="shareLinkInput" readonly /><div style="display:flex; gap:8px; margin-top:10px;"><button class="btn" id="copyShare">Copy</button><button class="btn ghost" id="waShare">WhatsApp</button><button class="btn tiny" id="nativeShare">Native</button><button class="btn tiny" id="closeShare">Close</button></div></div></div>
+
+<div id="withdrawModal" class="modal" aria-hidden="true"><div class="modal-card"><h3>Request Withdrawal</h3><p class="muted">Choose method, enter name, account number and amount (minimum $1000).</p><label>Method</label><select id="withdrawMethod"><option value="easypaisa">EasyPaisa</option><option value="jazzcash">JazzCash</option></select><label>Name (account holder)</label><input id="withdrawName" placeholder="Full name" /><label>Account Number</label><input id="withdrawAccount" placeholder="Account / Mobile number" /><label>Amount (USD)</label><div style="display:flex; gap:8px; margin-top:6px;"><select id="presetAmount"><option value="">Select preset</option><option value="1000">$1000</option><option value="2000">$2000</option><option value="5000">$5000</option></select><input id="withdrawAmount" placeholder="Or enter amount" /></div><div style="display:flex; gap:8px; margin-top:10px;"><button class="btn" id="submitWithdraw">Submit</button><button class="btn ghost" id="closeWithdraw">Close</button></div><p class="muted" id="withdrawNote"></p></div></div>
+
+<script src="app.js"></script>
+<script>
+const cur=localStorage.getItem('current_user');
+if(!cur){location.href='login.html';}else{const u=getUser(cur);document.getElementById('greeting').textContent=`Welcome, ${u.name||u.username}`;refreshBalance();populateLinks();renderTx();renderShareState();updateWithdrawNote();}
+document.getElementById('logoutBtn').addEventListener('click',()=>{localStorage.removeItem('current_user');location.href='login.html';});
+document.getElementById('genRef').addEventListener('click',()=>{const token=generateReferralToken();const urlObj=new URL('r.html',location.href);urlObj.searchParams.set('ref',token);const url=urlObj.href;showReferral(url);saveReferralForCurrent(url);});
+document.getElementById('shareBtn').addEventListener('click',()=>{const u=getUser(localStorage.getItem('current_user'));const last=(u.referrals&&u.referrals.slice(-1)[0])||{};const url=last.url||(new URL('r.html',location.href).href+'?ref=unknown');openShareModal(url);});
+document.getElementById('copyShare').addEventListener('click',()=>{const el=document.getElementById('shareLinkInput');el.select();document.execCommand('copy');alert('Copied link.');});
+document.getElementById('waShare').addEventListener('click',()=>{const url=document.getElementById('shareLinkInput').value;const text=encodeURIComponent('Check this out: '+url);window.open('https://wa.me/?text='+text,'_blank');});
+document.getElementById('nativeShare').addEventListener('click',async()=>{const url=document.getElementById('shareLinkInput').value;if(navigator.share){try{await navigator.share({title:'EarnSite referral',text:'Check this referral',url});alert('Shared');}catch(e){} }else alert('Native share not available');});
+document.getElementById('closeShare').addEventListener('click',()=>closeShareModal());
+document.getElementById('closeWithdraw').addEventListener('click',()=>closeWithdrawModal());
+document.getElementById('withdrawBtn').addEventListener('click',()=>openWithdrawModal());
+document.getElementById('simulateOne').addEventListener('click',()=>simulateShare(1));
+document.getElementById('simulateTen').addEventListener('click',()=>simulateShare(10));
+document.getElementById('presetAmount').addEventListener('change',(e)=>{const v=e.target.value;if(v)document.getElementById('withdrawAmount').value=v;});
+document.getElementById('submitWithdraw').addEventListener('click',()=>{const method=document.getElementById('withdrawMethod').value;const name=document.getElementById('withdrawName').value.trim();const account=document.getElementById('withdrawAccount').value.trim();const amount=parseFloat(document.getElementById('withdrawAmount').value);const curUser=localStorage.getItem('current_user');const u=getUser(curUser);if(!name||!account||!amount||isNaN(amount)){alert('Please fill all fields and enter a valid amount.');return;}if(amount<1000){alert('Minimum withdrawal $1000 required.');return;}if((u.balance||0)<amount){alert('Insufficient balance.');return;}u.balance=(u.balance||0)-amount;updateUser(u);const tx=getTransactions();tx.unshift({username:u.username,title:`Withdrawal request (${method})`,amount:-amount,date:new Date().toLocaleString(),status:'Pending',account:account,name:name,method:method});saveTransactions(tx);alert('Withdrawal requested. Status: Pending.');closeWithdrawModal();refreshBalance();renderTx();updateWithdrawNote();});
+function openShareModal(url){document.getElementById('shareLinkInput').value=url;document.getElementById('shareModal').style.display='flex';}
+function closeShareModal(){document.getElementById('shareModal').style.display='none';}
+function openWithdrawModal(){document.getElementById('withdrawModal').style.display='flex';updateWithdrawNote();}
+function closeWithdrawModal(){document.getElementById('withdrawModal').style.display='none';}
+function showReferral(url){const c=document.getElementById('refContainer');if(c)c.innerHTML=`<div class="refbox"><input readonly value="${url}" id="refInput" /><button class="btn tiny" onclick="copyRef()">Copy</button> <a class="btn ghost tiny" href="${url}" target="_blank">Open</a></div>`;}
+function copyRef(){const el=document.getElementById('refInput');el.select();document.execCommand('copy');alert('Copied referral URL to clipboard.');}
+function updateWithdrawNote(){const u=getUser(localStorage.getItem('current_user'));const note=document.getElementById('withdrawNote');if(!note)return;if((u.balance||0)<1000)note.textContent='Minimum withdrawal is $1000. Your balance must be at least $1000 to request withdrawal.';else note.textContent='You can request withdrawal. All requests will remain Pending.';}
+</script>
+</body></html>

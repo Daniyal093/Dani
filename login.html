@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Login — EarnSite</title><link rel="stylesheet" href="styles.css"/></head>
+<body class="bg">
+  <main class="card center">
+    <h1 class="title">Welcome Back</h1>
+    <form id="loginForm" class="form">
+      <label>Username:</label><input id="l_username" required placeholder="username" />
+      <label>Password:</label><input id="l_password" type="password" required placeholder="password" />
+      <button class="btn" type="submit">Login</button>
+      <p class="muted">New here? <a href="signup.html">Sign up</a></p>
+    </form>
+  </main>
+<script src="app.js"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit',(e)=>{
+ e.preventDefault();
+ const username=document.getElementById('l_username').value.trim();
+ const password=document.getElementById('l_password').value;
+ const res=loginUser({username,password});
+ if(!res.ok){alert(res.msg);return;}
+ localStorage.setItem('current_user',res.username);
+ location.href='dashboard.html';
+});
+</script>
+</body></html>
